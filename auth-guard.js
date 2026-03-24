@@ -77,13 +77,15 @@ export function renderNav(profile) {
 
   if (profile.role === "staff") {
     nav.innerHTML = `
-      <div class="nav-left">
-        <span class="soft-badge">Laya Voucher v5</span>
-        <span class="role-badge">${profileRole}</span>
-      </div>
-      <div class="nav-right">
-        <span class="ref">${profileName}</span>
-        <button id="logoutBtn" class="nav-btn" type="button">Logout</button>
+      <div class="nav-top nav-top-staff">
+        <div class="nav-left">
+          <span class="soft-badge nav-brand">Laya Voucher v5</span>
+          <span class="role-badge">${profileRole}</span>
+        </div>
+        <div class="nav-right">
+          <span class="ref">${profileName}</span>
+          <button id="logoutBtn" class="nav-btn" type="button">Logout</button>
+        </div>
       </div>
     `;
   } else {
@@ -99,15 +101,17 @@ export function renderNav(profile) {
     if (profile.role === "admin") links.push(makeLink("admin-users.html", "Users"));
 
     nav.innerHTML = `
-      <div class="nav-left">
-        <span class="soft-badge">Laya Voucher v5</span>
-        <span class="role-badge">${profileRole}</span>
+      <div class="nav-top">
+        <div class="nav-left">
+          <span class="soft-badge nav-brand">Laya Voucher v5</span>
+          <span class="role-badge">${profileRole}</span>
+        </div>
+        <div class="nav-right">
+          <span class="ref">${profileName}</span>
+          <button id="logoutBtn" class="nav-btn" type="button">Logout</button>
+        </div>
       </div>
-      <div class="nav-links">${links.join("")}</div>
-      <div class="nav-right">
-        <span class="ref">${profileName}</span>
-        <button id="logoutBtn" class="nav-btn" type="button">Logout</button>
-      </div>
+      <div class="nav-links nav-links-centered">${links.join("")}</div>
     `;
   }
 

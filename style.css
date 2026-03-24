@@ -983,3 +983,118 @@ button.button-ghost:hover, .button-like.button-ghost:hover {
   background: rgba(30,57,50,.06);
 }
 .bullet-list { display:flex; flex-direction:column; gap:8px; color:var(--text); }
+
+
+/* === Nav polish patch v5.0.1 === */
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 22px;
+}
+.nav-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.nav-top-staff {
+  min-height: 56px;
+}
+.nav-left,
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.nav-left {
+  flex: 0 1 auto;
+}
+.nav-right {
+  flex: 0 1 auto;
+  margin-left: 0;
+}
+.nav-links,
+.nav-links-centered {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.nav a,
+.nav .nav-btn {
+  min-height: 46px;
+  min-width: 122px;
+  padding: 11px 18px;
+  border-radius: 18px;
+  font-weight: 800;
+}
+.nav .nav-btn {
+  min-width: 0;
+  padding-inline: 20px;
+}
+.nav .soft-badge,
+.nav .nav-brand {
+  color: #ffffff;
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+}
+.nav .role-badge {
+  background: rgba(215,183,123,0.16);
+  color: #fff4de;
+  border-color: rgba(215,183,123,0.24);
+}
+.nav .ref,
+.nav-left .ref,
+.nav-right .ref {
+  color: rgba(255,244,222,0.92);
+  font-weight: 600;
+}
+@media (max-width: 960px) {
+  .nav {
+    gap: 14px;
+  }
+  .nav-top,
+  .nav-top-staff {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .nav-left,
+  .nav-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .nav-right {
+    justify-content: flex-end;
+  }
+  .nav-links,
+  .nav-links-centered {
+    justify-content: flex-start;
+  }
+  .nav a,
+  .nav .nav-btn {
+    min-width: 112px;
+  }
+}
+@media (max-width: 640px) {
+  .nav {
+    padding: 18px 16px;
+  }
+  .nav-left,
+  .nav-right {
+    justify-content: flex-start;
+  }
+  .nav-right {
+    gap: 10px;
+  }
+  .nav a,
+  .nav .nav-btn {
+    width: calc(50% - 6px);
+    min-width: 0;
+  }
+}
