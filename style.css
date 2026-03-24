@@ -985,51 +985,60 @@ button.button-ghost:hover, .button-like.button-ghost:hover {
 .bullet-list { display:flex; flex-direction:column; gap:8px; color:var(--text); }
 
 
-/* === Nav polish patch v5.0.2 compact === */
+/* === Nav polish patch v5.0.3 single row === */
 .nav {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px 18px;
+  display: block;
+  padding: 12px 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
 }
+.nav::-webkit-scrollbar { display: none; }
 .nav-row {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
+  justify-content: flex-start;
+  gap: 12px;
   flex-wrap: nowrap;
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
+  white-space: nowrap;
 }
 .nav-row-staff {
   justify-content: space-between;
 }
 .nav-left,
-.nav-right {
-  display: flex;
+.nav-right,
+.nav-links,
+.nav-links-inline,
+.nav-links-centered {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  flex: 0 0 auto;
+  justify-content: flex-start;
+  gap: 8px;
+  flex-wrap: nowrap;
+  width: auto;
+  min-width: 0;
+  white-space: nowrap;
 }
 .nav-links,
 .nav-links-inline,
 .nav-links-centered {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
   flex: 1 1 auto;
-  flex-wrap: wrap;
-  min-width: 0;
+  justify-content: center;
+}
+.nav-right {
+  margin-left: auto;
 }
 .nav a,
 .nav .nav-btn {
-  min-height: 40px;
+  min-height: 38px;
   min-width: 0;
-  padding: 9px 16px;
+  padding: 8px 14px;
   border-radius: 16px;
   font-weight: 800;
-  font-size: 14px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 .nav .nav-btn {
   padding-inline: 18px;
@@ -1055,45 +1064,24 @@ button.button-ghost:hover, .button-like.button-ghost:hover {
   font-weight: 600;
   white-space: nowrap;
 }
-@media (max-width: 1180px) {
-  .nav-row {
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-  .nav-left,
-  .nav-right,
-  .nav-links,
-  .nav-links-inline,
-  .nav-links-centered {
-    width: 100%;
-    justify-content: center;
-  }
-}
-@media (max-width: 760px) {
+@media (max-width: 920px) {
   .nav {
-    padding: 14px;
+    padding: 11px 14px;
   }
-  .nav a,
-  .nav .nav-btn {
-    min-height: 38px;
-    padding: 8px 14px;
-    font-size: 13px;
+  .nav-row {
+    gap: 10px;
   }
-}
-@media (max-width: 560px) {
   .nav-left,
   .nav-right,
   .nav-links,
   .nav-links-inline,
   .nav-links-centered {
-    justify-content: flex-start;
+    gap: 7px;
   }
   .nav a,
   .nav .nav-btn {
-    width: calc(50% - 6px);
-  }
-  .nav .nav-btn,
-  .nav-right .ref {
-    width: auto;
+    min-height: 36px;
+    padding: 7px 12px;
+    font-size: 12.5px;
   }
 }
