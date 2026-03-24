@@ -77,7 +77,7 @@ export function renderNav(profile) {
 
   if (profile.role === "staff") {
     nav.innerHTML = `
-      <div class="nav-top nav-top-staff">
+      <div class="nav-row nav-row-staff">
         <div class="nav-left">
           <span class="soft-badge nav-brand">Laya Voucher v5</span>
           <span class="role-badge">${profileRole}</span>
@@ -101,17 +101,17 @@ export function renderNav(profile) {
     if (profile.role === "admin") links.push(makeLink("admin-users.html", "Users"));
 
     nav.innerHTML = `
-      <div class="nav-top">
+      <div class="nav-row nav-row-admin">
         <div class="nav-left">
           <span class="soft-badge nav-brand">Laya Voucher v5</span>
           <span class="role-badge">${profileRole}</span>
         </div>
+        <div class="nav-links nav-links-inline">${links.join("")}</div>
         <div class="nav-right">
           <span class="ref">${profileName}</span>
           <button id="logoutBtn" class="nav-btn" type="button">Logout</button>
         </div>
       </div>
-      <div class="nav-links nav-links-centered">${links.join("")}</div>
     `;
   }
 

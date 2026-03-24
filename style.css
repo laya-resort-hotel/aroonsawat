@@ -985,57 +985,54 @@ button.button-ghost:hover, .button-like.button-ghost:hover {
 .bullet-list { display:flex; flex-direction:column; gap:8px; color:var(--text); }
 
 
-/* === Nav polish patch v5.0.1 === */
+/* === Nav polish patch v5.0.2 compact === */
 .nav {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px 22px;
+  gap: 8px;
+  padding: 14px 18px;
 }
-.nav-top {
+.nav-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
+  gap: 14px;
+  flex-wrap: nowrap;
+  width: 100%;
 }
-.nav-top-staff {
-  min-height: 56px;
+.nav-row-staff {
+  justify-content: space-between;
 }
 .nav-left,
 .nav-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
-}
-.nav-left {
-  flex: 0 1 auto;
-}
-.nav-right {
-  flex: 0 1 auto;
-  margin-left: 0;
+  flex: 0 0 auto;
 }
 .nav-links,
+.nav-links-inline,
 .nav-links-centered {
-  width: 100%;
   display: flex;
-  justify-content: center;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 10px;
+  flex: 1 1 auto;
   flex-wrap: wrap;
+  min-width: 0;
 }
 .nav a,
 .nav .nav-btn {
-  min-height: 46px;
-  min-width: 122px;
-  padding: 11px 18px;
-  border-radius: 18px;
+  min-height: 40px;
+  min-width: 0;
+  padding: 9px 16px;
+  border-radius: 16px;
   font-weight: 800;
+  font-size: 14px;
 }
 .nav .nav-btn {
-  min-width: 0;
-  padding-inline: 20px;
+  padding-inline: 18px;
 }
 .nav .soft-badge,
 .nav .nav-brand {
@@ -1043,58 +1040,60 @@ button.button-ghost:hover, .button-like.button-ghost:hover {
   background: rgba(255,255,255,0.05);
   border-color: rgba(255,255,255,0.14);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+  white-space: nowrap;
 }
 .nav .role-badge {
   background: rgba(215,183,123,0.16);
   color: #fff4de;
   border-color: rgba(215,183,123,0.24);
+  white-space: nowrap;
 }
 .nav .ref,
 .nav-left .ref,
 .nav-right .ref {
   color: rgba(255,244,222,0.92);
   font-weight: 600;
+  white-space: nowrap;
 }
-@media (max-width: 960px) {
-  .nav {
-    gap: 14px;
-  }
-  .nav-top,
-  .nav-top-staff {
-    flex-direction: column;
-    align-items: stretch;
+@media (max-width: 1180px) {
+  .nav-row {
+    flex-wrap: wrap;
+    justify-content: center;
   }
   .nav-left,
-  .nav-right {
-    width: 100%;
-    justify-content: space-between;
-  }
-  .nav-right {
-    justify-content: flex-end;
-  }
+  .nav-right,
   .nav-links,
+  .nav-links-inline,
+  .nav-links-centered {
+    width: 100%;
+    justify-content: center;
+  }
+}
+@media (max-width: 760px) {
+  .nav {
+    padding: 14px;
+  }
+  .nav a,
+  .nav .nav-btn {
+    min-height: 38px;
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+}
+@media (max-width: 560px) {
+  .nav-left,
+  .nav-right,
+  .nav-links,
+  .nav-links-inline,
   .nav-links-centered {
     justify-content: flex-start;
   }
   .nav a,
   .nav .nav-btn {
-    min-width: 112px;
-  }
-}
-@media (max-width: 640px) {
-  .nav {
-    padding: 18px 16px;
-  }
-  .nav-left,
-  .nav-right {
-    justify-content: flex-start;
-  }
-  .nav-right {
-    gap: 10px;
-  }
-  .nav a,
-  .nav .nav-btn {
     width: calc(50% - 6px);
-    min-width: 0;
+  }
+  .nav .nav-btn,
+  .nav-right .ref {
+    width: auto;
   }
 }
