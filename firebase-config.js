@@ -4,20 +4,19 @@ import { getAuth } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-aut
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCNtSSijagAnkow0iqZC1o0A1DMmMc3Pyc",
-  authDomain: "laya-voucher.firebaseapp.com",
-  projectId: "laya-voucher",
-  storageBucket: "laya-voucher.firebasestorage.app",
-  messagingSenderId: "460141957899",
-  appId: "1:460141957899:web:04bacf33afa42819a8880e",
-  measurementId: "G-2V86TGBEZB"
+  apiKey: "AIzaSyDNx5D-SB2VWa4LkksfJKKeF82h3ReMMUk",
+  authDomain: "aroonsawat-ca537.firebaseapp.com",
+  projectId: "aroonsawat-ca537",
+  storageBucket: "aroonsawat-ca537.firebasestorage.app",
+  messagingSenderId: "1057556602457",
+  appId: "1:1057556602457:web:12de6d54262bad08219b48",
+  measurementId: "G-HPY5CG3SBB"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-// Analytics works only in supported environments/contexts
 let analytics = null;
 try {
   analytics = getAnalytics(app);
