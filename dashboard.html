@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reusable Card Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body class="app-page">
+  <div class="container app-shell">
+    <section class="page-header">
+      <div class="page-header-row">
+        <div>
+          <span class="soft-badge">Analytics</span>
+          <h1>Reusable Card Dashboard</h1>
+          <p class="page-subtitle">สรุปภาพรวมการ์ดถาวรในระบบ ดูจำนวน Available / Used / Disabled และ export รายการสำหรับตรวจนับหน้างานได้</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="card section-card">
+      <h2>Filter</h2>
+      <div class="filter-grid">
+        <div>
+          <label for="statusFilter">Status</label>
+          <select id="statusFilter">
+            <option value="all">All</option>
+            <option value="issued">Available</option>
+            <option value="redeemed">Used</option>
+            <option value="disabled">Disabled</option>
+          </select>
+        </div>
+        <div>
+          <label for="outletFilter">Outlet</label>
+          <select id="outletFilter"><option value="all">All</option></select>
+        </div>
+        <div>
+          <label for="groupFilter">Card Group</label>
+          <select id="groupFilter"><option value="all">All</option></select>
+        </div>
+      </div>
+      <div class="filter-actions">
+        <button id="applyBtn" type="button">Apply Filter</button>
+        <button id="resetBtn" type="button" class="button-secondary">Reset</button>
+        <button id="exportBtn" type="button" class="button-ghost">Export XLSX</button>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value" id="totalCount">0</div></div>
+      <div class="stat-card"><div class="stat-label">Available</div><div class="stat-value" id="availableCount">0</div></div>
+      <div class="stat-card"><div class="stat-label">Used</div><div class="stat-value" id="usedCount">0</div></div>
+      <div class="stat-card"><div class="stat-label">Disabled</div><div class="stat-value" id="disabledCount">0</div></div>
+    </div>
+
+    <div class="card section-card">
+      <h2>Summary by Outlet</h2>
+      <div class="table-wrap">
+        <table class="voucher-table">
+          <thead><tr><th>Outlet</th><th>Total</th><th>Available</th><th>Used</th><th>Disabled</th></tr></thead>
+          <tbody id="outletBody"><tr><td colspan="5">กำลังโหลด...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card section-card">
+      <h2>Recent Cards</h2>
+      <div class="table-wrap">
+        <table class="voucher-table">
+          <thead><tr><th>Card Label</th><th>Voucher Code</th><th>Card Group</th><th>Outlet</th><th>Status</th><th>Redeemed At</th><th>Reset Count</th></tr></thead>
+          <tbody id="recentBody"><tr><td colspan="7">กำลังโหลด...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="nav" id="navMenu"></div>
+  </div>
+
+  <script type="module">
+    import { db } from "./firebase-config.js";
+    import { requireRole, renderNav } from "./auth-guard.js";
+    import { collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+
+    const { profile } = await requireRole(["supervisor", "manager", "admin"]);
+    renderNav(profile);
+
+    const statusFilter = document.getElementById("statusFilter");
+    const outletFilter = document.getElementById("outletFilter");
+    const groupFilter = document.getElementById("groupFilter");
+    const applyBtn = document.getElementById("applyBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const exportBtn = document.getElementById("exportBtn");
+    const totalCount = document.getElementById("totalCount");
+    const availableCount = document.getElementById("availableCount");
+    const usedCount = document.getElementById("usedCount");
+    const disabledCount = document.getElementById("disabledCount");
+    const outletBody = document.getElementById("outletBody");
+    const recentBody = document.getElementById("recentBody");
+
+    let cards = [];
+    let filteredCards = [];
+
+    function toDate(value) {
+      if (!value) return null;
+      try { return value.toDate ? value.toDate() : new Date(value); } catch { return null; }
+    }
+    function fmt(value) {
+      const d = toDate(value);
+      return d ? d.toLocaleString("th-TH") : "-";
+    }
+    function statusLabel(status) {
+      if (status === "issued") return "Available";
+      if (status === "redeemed") return "Used";
+      if (status === "disabled") return "Disabled";
+      return status || "-";
+    }
+    function allowByScope(data) {
+      if (profile.role === "admin") return true;
+      return (data.department || "") === (profile.department || "");
+    }
+
+    async function loadCards() {
+      const snap = await getDocs(query(collection(db, "vouchers"), where("voucher_mode", "==", "reusable_card")));
+      cards = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter(allowByScope);
+      populateSelects();
+      applyFilters();
+    }
+
+    function populateSelects() {
+      const outlets = Array.from(new Set(cards.map((x) => x.outlet || "-").filter(Boolean))).sort();
+      const groups = Array.from(new Set(cards.map((x) => x.card_group || "-").filter(Boolean))).sort();
+      outletFilter.innerHTML = `<option value="all">All</option>${outlets.map((x) => `<option value="${x}">${x}</option>`).join("")}`;
+      groupFilter.innerHTML = `<option value="all">All</option>${groups.map((x) => `<option value="${x}">${x}</option>`).join("")}`;
+    }
+
+    function applyFilters() {
+      filteredCards = cards.filter((card) => {
+        const matchesStatus = statusFilter.value === "all" || card.status === statusFilter.value;
+        const matchesOutlet = outletFilter.value === "all" || (card.outlet || "") === outletFilter.value;
+        const matchesGroup = groupFilter.value === "all" || (card.card_group || "") === groupFilter.value;
+        return matchesStatus && matchesOutlet && matchesGroup;
+      }).sort((a, b) => (toDate(b.created_at)?.getTime() || 0) - (toDate(a.created_at)?.getTime() || 0));
+      render();
+    }
+
+    function render() {
+      totalCount.textContent = String(filteredCards.length);
+      availableCount.textContent = String(filteredCards.filter((x) => x.status === "issued").length);
+      usedCount.textContent = String(filteredCards.filter((x) => x.status === "redeemed").length);
+      disabledCount.textContent = String(filteredCards.filter((x) => x.status === "disabled").length);
+
+      const outletMap = {};
+      filteredCards.forEach((card) => {
+        const key = card.outlet || "-";
+        if (!outletMap[key]) outletMap[key] = { outlet: key, total: 0, issued: 0, redeemed: 0, disabled: 0 };
+        outletMap[key].total += 1;
+        if (card.status === "issued") outletMap[key].issued += 1;
+        if (card.status === "redeemed") outletMap[key].redeemed += 1;
+        if (card.status === "disabled") outletMap[key].disabled += 1;
+      });
+      const outletRows = Object.values(outletMap).sort((a, b) => a.outlet.localeCompare(b.outlet));
+      outletBody.innerHTML = outletRows.length ? outletRows.map((row) => `
+        <tr>
+          <td>${row.outlet}</td>
+          <td>${row.total}</td>
+          <td>${row.issued}</td>
+          <td>${row.redeemed}</td>
+          <td>${row.disabled}</td>
+        </tr>
+      `).join("") : `<tr><td colspan="5">ไม่พบข้อมูล</td></tr>`;
+
+      recentBody.innerHTML = filteredCards.length ? filteredCards.slice(0, 100).map((card) => `
+        <tr>
+          <td>${card.card_label || "-"}</td>
+          <td>${card.voucher_code || "-"}</td>
+          <td>${card.card_group || "-"}</td>
+          <td>${card.outlet || "-"}</td>
+          <td><span class="status-pill status-${card.status || "issued"}">${statusLabel(card.status)}</span></td>
+          <td>${fmt(card.redeemed_at)}</td>
+          <td>${card.reset_count || 0}</td>
+        </tr>
+      `).join("") : `<tr><td colspan="7">ไม่พบข้อมูล</td></tr>`;
+    }
+
+    function exportXlsx() {
+      const rows = filteredCards.map((card) => ({
+        CardLabel: card.card_label || "",
+        VoucherCode: card.voucher_code || "",
+        CardGroup: card.card_group || "",
+        Department: card.department || "",
+        Outlet: card.outlet || "",
+        Status: statusLabel(card.status),
+        RedeemedAt: fmt(card.redeemed_at),
+        ResetCount: card.reset_count || 0,
+        LastResetAt: fmt(card.last_reset_at),
+        LastResetBy: card.last_reset_by_name || card.last_reset_by_uid || "",
+        IssuedBy: card.issued_by_name || card.issued_by_uid || "",
+        CreatedAt: fmt(card.created_at)
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Note: "No data" }]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "ReusableCards");
+      XLSX.writeFile(wb, "laya_voucher_v5_reusable_cards.xlsx");
+    }
+
+    applyBtn.addEventListener("click", applyFilters);
+    resetBtn.addEventListener("click", () => {
+      statusFilter.value = "all";
+      outletFilter.value = "all";
+      groupFilter.value = "all";
+      applyFilters();
+    });
+    exportBtn.addEventListener("click", exportXlsx);
+
+    await loadCards();
+  </script>
+</body>
+</html>

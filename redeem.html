@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Redeem Card</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body class="app-page">
+  <div class="container app-shell">
+    <section class="page-header">
+      <div class="page-header-row">
+        <div>
+          <span class="soft-badge">Outlet Use</span>
+          <h1>Redeem Card</h1>
+          <p class="page-subtitle">สแกน QR จากการ์ดแข็งหรือพิมพ์ Voucher Code เพื่อตรวจสอบสถานะและยืนยันการใช้สิทธิ์</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="card section-card">
+      <h2>Redeem Checkpoint</h2>
+      <p class="page-subtitle">QR บนการ์ดควร encode เป็น Voucher Code ถาวรของการ์ดแต่ละใบ</p>
+      <div style="height:10px"></div>
+      <input id="voucherInput" type="text" placeholder="ใส่ Voucher Code หรือ Card Label" />
+      <div class="inline-actions">
+        <button id="checkBtn">Check</button>
+        <button id="startScanBtn" type="button">Start QR Scan</button>
+        <button id="stopScanBtn" type="button" class="button-secondary">Stop Scan</button>
+      </div>
+    </div>
+
+    <div id="reader" class="card section-card hidden"></div>
+    <div id="voucherBox" class="card section-card hidden result-highlight"></div>
+    <div class="nav no-print" id="navMenu"></div>
+  </div>
+
+  <script type="module">
+    import { db } from "./firebase-config.js";
+    import { requireRole, renderNav } from "./auth-guard.js";
+    import { collection, query, where, getDocs, doc, runTransaction, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+
+    const { user, profile } = await requireRole(["staff", "supervisor", "manager", "admin"]);
+    renderNav(profile);
+
+    const voucherInput = document.getElementById("voucherInput");
+    const checkBtn = document.getElementById("checkBtn");
+    const startScanBtn = document.getElementById("startScanBtn");
+    const stopScanBtn = document.getElementById("stopScanBtn");
+    const voucherBox = document.getElementById("voucherBox");
+    const reader = document.getElementById("reader");
+
+    let currentDocId = null;
+    let currentData = null;
+    let scanner = null;
+    let scannerRunning = false;
+
+    function toDate(value) {
+      if (!value) return null;
+      try { return value.toDate ? value.toDate() : new Date(value); } catch { return null; }
+    }
+    function fmt(value) {
+      const d = toDate(value);
+      return d ? d.toLocaleString("th-TH") : "-";
+    }
+    function statusLabel(data) {
+      if (!data) return "-";
+      if (data.status === "issued") return "Available";
+      if (data.status === "redeemed") return "Used";
+      if (data.status === "disabled") return "Disabled";
+      return data.status || "-";
+    }
+    function sameOutletForStaff(data) {
+      if (profile.role !== "staff") return true;
+      if (!profile.outlet) return true;
+      return (data.outlet || "") === (profile.outlet || "");
+    }
+
+    async function findByInput(keyword) {
+      const codeQ = query(collection(db, "vouchers"), where("voucher_code", "==", keyword));
+      const codeSnap = await getDocs(codeQ);
+      if (!codeSnap.empty) return codeSnap.docs[0];
+      const labelQ = query(collection(db, "vouchers"), where("card_label", "==", keyword));
+      const labelSnap = await getDocs(labelQ);
+      return labelSnap.empty ? null : labelSnap.docs[0];
+    }
+
+    async function loadVoucherByInput(rawInput) {
+      const keyword = rawInput.trim();
+      voucherBox.classList.remove("hidden");
+      voucherBox.innerHTML = "กำลังตรวจสอบ...";
+
+      const found = await findByInput(keyword);
+      if (!found) {
+        currentDocId = null;
+        currentData = null;
+        voucherBox.innerHTML = `<p class="error">ไม่พบการ์ดนี้ในระบบ</p>`;
+        return;
+      }
+
+      currentDocId = found.id;
+      currentData = found.data();
+
+      if ((currentData.voucher_mode || "") !== "reusable_card") {
+        voucherBox.innerHTML = `<p class="error">รายการนี้ไม่ใช่ Reusable Card Mode</p>`;
+        return;
+      }
+
+      const canRedeem = currentData.status === "issued" && sameOutletForStaff(currentData);
+      let hint = "พร้อมใช้";
+      if (currentData.status === "redeemed") hint = "การ์ดนี้ถูกใช้แล้ว รอ Front Desk reset";
+      else if (currentData.status === "disabled") hint = "การ์ดนี้ถูกปิดใช้งาน";
+      else if (!sameOutletForStaff(currentData)) hint = "บัญชี staff นี้ไม่อยู่ใน outlet ที่อนุญาต";
+
+      voucherBox.innerHTML = `
+        <h2>${currentData.card_label || currentData.voucher_code || "-"}</h2>
+        <p><strong>Voucher Code:</strong> ${currentData.voucher_code || "-"}</p>
+        <p><strong>Card Group:</strong> ${currentData.card_group || "-"}</p>
+        <p><strong>Outlet:</strong> ${currentData.outlet || "-"}</p>
+        <p><strong>Status:</strong> ${statusLabel(currentData)}</p>
+        <p><strong>Last Redeemed:</strong> ${fmt(currentData.redeemed_at)}</p>
+        <p><strong>Reset Count:</strong> ${currentData.reset_count || 0}</p>
+        <p class="ref">${hint}</p>
+        ${canRedeem ? `<button id="redeemBtn">Confirm Redeem</button>` : `<p class="error">การ์ดนี้ยังไม่สามารถ Redeem ได้</p>`}
+      `;
+
+      const redeemBtn = document.getElementById("redeemBtn");
+      if (redeemBtn) redeemBtn.addEventListener("click", redeemVoucher);
+    }
+
+    async function redeemVoucher() {
+      if (!currentDocId || !currentData) return;
+      const ok = confirm(`ยืนยันใช้การ์ด ${currentData.card_label || currentData.voucher_code}?`);
+      if (!ok) return;
+      try {
+        const ref = doc(db, "vouchers", currentDocId);
+        await runTransaction(db, async (transaction) => {
+          const snap = await transaction.get(ref);
+          if (!snap.exists()) throw new Error("ไม่พบการ์ดในระบบ");
+          const latest = snap.data();
+          if ((latest.voucher_mode || "") !== "reusable_card") throw new Error("รายการนี้ไม่ใช่โหมดการ์ดถาวร");
+          if (latest.status !== "issued") throw new Error("การ์ดนี้ถูกใช้แล้วหรือถูกปิดใช้งานอยู่");
+          if (profile.role === "staff" && profile.outlet && latest.outlet !== profile.outlet) throw new Error("บัญชีนี้ไม่มีสิทธิ์ใช้การ์ดของ outlet นี้");
+          transaction.update(ref, {
+            status: "redeemed",
+            redeemed_at: serverTimestamp(),
+            redeemed_by_uid: user.uid,
+            redeemed_by_name: profile.name || profile.employee_id || "",
+            updated_at: serverTimestamp()
+          });
+        });
+
+        await addDoc(collection(db, "voucher_logs"), {
+          voucher_code: currentData.voucher_code || "",
+          voucher_ref: currentData.internal_no || "",
+          action: "redeemed",
+          action_at: serverTimestamp(),
+          action_by_uid: user.uid,
+          action_by_name: profile.name || profile.employee_id || "",
+          action_by_role: profile.role,
+          department: currentData.department || "",
+          outlet: currentData.outlet || "",
+          note: `Redeemed reusable card ${currentData.card_label || currentData.voucher_code}`
+        });
+
+        voucherBox.innerHTML = `<h2>${currentData.card_label || currentData.voucher_code}</h2><p class="success">Redeemed สำเร็จแล้ว</p><p class="ref">รอ Front Desk รับการ์ดคืนและกด Reuse เพื่อเปิดใช้งานรอบถัดไป</p>`;
+      } catch (err) {
+        voucherBox.innerHTML = `<p class="error">Redeem ไม่สำเร็จ: ${err.message}</p>`;
+      }
+    }
+
+    checkBtn.addEventListener("click", async () => {
+      const value = voucherInput.value.trim();
+      if (!value) return alert("กรุณาใส่ Voucher Code หรือ Card Label");
+      try { await loadVoucherByInput(value); }
+      catch (err) {
+        voucherBox.classList.remove("hidden");
+        voucherBox.innerHTML = `<p class="error">${err.message}</p>`;
+      }
+    });
+
+    startScanBtn.addEventListener("click", async () => {
+      if (scannerRunning) return;
+      reader.classList.remove("hidden");
+      reader.innerHTML = "";
+      scanner = new Html5Qrcode("reader");
+      try {
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: 220 },
+          async (decodedText) => {
+            voucherInput.value = decodedText;
+            if (scanner && scannerRunning) {
+              await scanner.stop();
+              scannerRunning = false;
+            }
+            await loadVoucherByInput(decodedText);
+          },
+          () => {}
+        );
+        scannerRunning = true;
+      } catch (err) {
+        voucherBox.classList.remove("hidden");
+        voucherBox.innerHTML = `<p class="error">เปิดกล้องไม่สำเร็จ: ${err.message}</p>`;
+      }
+    });
+
+    stopScanBtn.addEventListener("click", async () => {
+      if (scanner && scannerRunning) {
+        await scanner.stop();
+        scannerRunning = false;
+      }
+      reader.classList.add("hidden");
+    });
+  </script>
+</body>
+</html>
