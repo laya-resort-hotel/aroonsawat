@@ -29,6 +29,7 @@
         <button id="startScanBtn" type="button">Start QR Scan</button>
         <button id="stopScanBtn" type="button" class="button-secondary">Stop Scan</button>
       </div>
+      <p class="ref">หมายเหตุ: การสแกนด้วยกล้องต้องเปิดผ่าน HTTPS และกดอนุญาตใช้กล้องในเบราว์เซอร์</p>
     </div>
 
     <div id="reader" class="card section-card hidden"></div>
@@ -55,6 +56,8 @@
     let currentData = null;
     let scanner = null;
     let scannerRunning = false;
+    let scanBusy = false;
+    let currentCameraId = null;
 
     function toDate(value) {
       if (!value) return null;
@@ -70,6 +73,123 @@
       if (data.status === "redeemed") return "Used";
       if (data.status === "disabled") return "Disabled";
       return data.status || "-";
+    }
+
+    function showCameraError(err) {
+      const raw = String(err?.message || err || "Unknown camera error");
+      const lower = raw.toLowerCase();
+      let friendly = raw;
+      if (!window.isSecureContext) {
+        friendly = "ต้องเปิดเว็บผ่าน HTTPS ก่อน จึงจะใช้กล้องได้";
+      } else if (lower.includes("permission") || lower.includes("notallowed") || lower.includes("denied")) {
+        friendly = "เบราว์เซอร์ยังไม่ได้รับสิทธิ์ใช้กล้อง กรุณากดอนุญาตกล้อง แล้วลองใหม่อีกครั้ง";
+      } else if (lower.includes("notfound") || lower.includes("no camera") || lower.includes("camera not found")) {
+        friendly = "ไม่พบกล้องในอุปกรณ์นี้";
+      } else if (lower.includes("notreadable") || lower.includes("trackstart") || lower.includes("could not start") || lower.includes("in use")) {
+        friendly = "กล้องอาจถูกใช้งานโดยแอปอื่นอยู่ กรุณาปิดแอปกล้องหรือรีเฟรชหน้าแล้วลองใหม่";
+      } else if (lower.includes("overconstrained") || lower.includes("constraints")) {
+        friendly = "อุปกรณ์นี้ไม่รองรับโหมดกล้องที่ขอ ระบบจะพยายามสลับกล้องให้อัตโนมัติ";
+      }
+      voucherBox.classList.remove("hidden");
+      voucherBox.innerHTML = `<p class="error">เปิดกล้องไม่สำเร็จ: ${friendly}</p>`;
+    }
+
+    function pickBestCamera(cameras) {
+      if (!Array.isArray(cameras) || !cameras.length) return null;
+      const score = (label = "") => {
+        const s = label.toLowerCase();
+        let n = 0;
+        if (/(back|rear|environment|world|traseira|trasera|arrière|후면|背面|後面)/i.test(s)) n += 100;
+        if (/(wide|ultra|main)/i.test(s)) n += 20;
+        if (/(front|user|face|facetime)/i.test(s)) n -= 50;
+        return n;
+      };
+      return [...cameras].sort((a,b) => score(b.label) - score(a.label))[0] || cameras[0];
+    }
+
+    async function stopScanner() {
+      try {
+        if (scanner && scannerRunning) {
+          await scanner.stop();
+        }
+      } catch (_) {}
+      try {
+        if (scanner) {
+          await scanner.clear();
+        }
+      } catch (_) {}
+      scannerRunning = false;
+      scanBusy = false;
+      scanner = null;
+      currentCameraId = null;
+      reader.classList.add("hidden");
+      reader.innerHTML = "";
+    }
+
+    async function startScanner() {
+      if (scannerRunning) return;
+      if (!window.isSecureContext) {
+        showCameraError(new Error("HTTPS required"));
+        return;
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showCameraError(new Error("Camera API unavailable"));
+        return;
+      }
+
+      reader.classList.remove("hidden");
+      reader.innerHTML = "";
+      voucherBox.classList.remove("hidden");
+      voucherBox.innerHTML = `<p class="ref">กำลังเปิดกล้อง...</p>`;
+
+      try {
+        const warmup = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+        warmup.getTracks().forEach(track => track.stop());
+      } catch (err) {
+        showCameraError(err);
+        return;
+      }
+
+      try {
+        const cameras = await Html5Qrcode.getCameras();
+        const preferred = pickBestCamera(cameras);
+        currentCameraId = preferred?.id || null;
+      } catch (_) {
+        currentCameraId = null;
+      }
+
+      scanner = new Html5Qrcode("reader");
+      const config = { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1.333334 };
+
+      const onSuccess = async (decodedText) => {
+        if (scanBusy) return;
+        scanBusy = true;
+        voucherInput.value = decodedText;
+        await stopScanner();
+        await loadVoucherByInput(decodedText);
+      };
+
+      try {
+        if (currentCameraId) {
+          await scanner.start(currentCameraId, config, onSuccess, () => {});
+        } else {
+          await scanner.start({ facingMode: "environment" }, config, onSuccess, () => {});
+        }
+        scannerRunning = true;
+        voucherBox.innerHTML = `<p class="success">กล้องพร้อมสแกนแล้ว กรุณาเล็ง QR ให้อยู่ในกรอบ</p>`;
+      } catch (err) {
+        try {
+          await stopScanner();
+          scanner = new Html5Qrcode("reader");
+          await scanner.start({ facingMode: "environment" }, config, onSuccess, () => {});
+          scannerRunning = true;
+          voucherBox.innerHTML = `<p class="success">กล้องพร้อมสแกนแล้ว กรุณาเล็ง QR ให้อยู่ในกรอบ</p>`;
+          return;
+        } catch (fallbackErr) {
+          await stopScanner();
+          showCameraError(fallbackErr);
+        }
+      }
     }
     function sameOutletForStaff(data) {
       if (profile.role !== "staff") return true;
@@ -181,37 +301,11 @@
     });
 
     startScanBtn.addEventListener("click", async () => {
-      if (scannerRunning) return;
-      reader.classList.remove("hidden");
-      reader.innerHTML = "";
-      scanner = new Html5Qrcode("reader");
-      try {
-        await scanner.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: 220 },
-          async (decodedText) => {
-            voucherInput.value = decodedText;
-            if (scanner && scannerRunning) {
-              await scanner.stop();
-              scannerRunning = false;
-            }
-            await loadVoucherByInput(decodedText);
-          },
-          () => {}
-        );
-        scannerRunning = true;
-      } catch (err) {
-        voucherBox.classList.remove("hidden");
-        voucherBox.innerHTML = `<p class="error">เปิดกล้องไม่สำเร็จ: ${err.message}</p>`;
-      }
+      await startScanner();
     });
 
     stopScanBtn.addEventListener("click", async () => {
-      if (scanner && scannerRunning) {
-        await scanner.stop();
-        scannerRunning = false;
-      }
-      reader.classList.add("hidden");
+      await stopScanner();
     });
   </script>
 </body>
