@@ -71,7 +71,9 @@ export function renderNav(profile) {
   }
 
   const currentPage = (window.location.pathname.split("/").pop() || "").toLowerCase();
+  const salesVoucherUrl = "https://laya-resort-hotel.github.io/Aroonsawas/";
   const makeLink = (href, label) => `<a href="${href}" class="${currentPage === href.toLowerCase() ? "active" : ""}">${label}</a>`;
+  const makeExternalLink = (href, label, extraClass = "") => `<a href="${href}" target="_blank" rel="noopener noreferrer" class="${extraClass}" title="Open in a new tab">${label}</a>`;
   const profileName = profile?.name || profile?.employee_id || "User";
   const profileRole = (profile?.role || "staff").toUpperCase();
 
@@ -83,6 +85,7 @@ export function renderNav(profile) {
           <span class="role-badge">${profileRole}</span>
         </div>
         <div class="nav-right">
+          ${makeExternalLink(salesVoucherUrl, "For Sales Voucher", "nav-sales-link")}
           <span class="ref">${profileName}</span>
           <button id="logoutBtn" class="nav-btn" type="button">Logout</button>
         </div>
@@ -98,6 +101,7 @@ export function renderNav(profile) {
       makeLink("voucher-detail.html", "Card Detail")
     ];
 
+    links.push(makeExternalLink(salesVoucherUrl, "For Sales Voucher", "nav-sales-link"));
     if (profile.role === "admin") links.push(makeLink("admin-users.html", "Users"));
 
     nav.innerHTML = `
