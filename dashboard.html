@@ -65,6 +65,7 @@
         <button id="applyBtn" type="button">Apply Filter</button>
         <button id="resetBtn" type="button" class="button-secondary">Reset</button>
         <button id="exportBtn" type="button" class="button-ghost">Export XLSX</button>
+        <button id="posPrintBtn" type="button" class="button-secondary">POS Print Report</button>
       </div>
     </div>
 
@@ -177,6 +178,7 @@
     const applyBtn = document.getElementById("applyBtn");
     const resetBtn = document.getElementById("resetBtn");
     const exportBtn = document.getElementById("exportBtn");
+    const posPrintBtn = document.getElementById("posPrintBtn");
 
     const activeMetaRow = document.getElementById("activeMetaRow");
     const todayRedeemedCount = document.getElementById("todayRedeemedCount");
@@ -492,6 +494,113 @@
       target.innerHTML = html || `<tr><td colspan="${colspan}">${empty}</td></tr>`;
     }
 
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function buildPosSectionTable(title, headers, rows) {
+      const head = headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("");
+      const body = rows.length
+        ? rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")
+        : `<tr><td colspan="${headers.length}">No data</td></tr>`;
+      return `
+        <section class="receipt-section">
+          <h3>${escapeHtml(title)}</h3>
+          <table>
+            <thead><tr>${head}</tr></thead>
+            <tbody>${body}</tbody>
+          </table>
+        </section>
+      `;
+    }
+
+    function openPosPrintView() {
+      const receiptHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>POS Report</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f4f4f4; font-family: Arial, Helvetica, sans-serif; color: #111; }
+    .toolbar { position: sticky; top: 0; z-index: 2; display: flex; gap: 10px; justify-content: center; padding: 12px; background: #ffffff; border-bottom: 1px solid #ddd; }
+    .toolbar button { border: 1px solid #111; background: #111; color: #fff; border-radius: 8px; padding: 10px 14px; font-size: 14px; cursor: pointer; }
+    .toolbar button.secondary { background: #fff; color: #111; }
+    .receipt { width: 80mm; max-width: 100%; margin: 14px auto 28px; background: #fff; padding: 10px 8px 18px; box-shadow: 0 6px 24px rgba(0,0,0,.12); }
+    .center { text-align: center; }
+    .title { font-size: 18px; font-weight: 700; }
+    .sub { font-size: 12px; margin-top: 4px; }
+    .line { border-top: 1px dashed #000; margin: 10px 0; }
+    .meta, .summary { width: 100%; border-collapse: collapse; }
+    .meta td, .summary td { padding: 2px 0; font-size: 12px; vertical-align: top; }
+    .meta td:last-child, .summary td:last-child { text-align: right; }
+    .receipt-section { margin-top: 12px; }
+    .receipt-section h3 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .4px; }
+    .receipt-section table { width: 100%; border-collapse: collapse; }
+    .receipt-section th, .receipt-section td { font-size: 11px; padding: 4px 2px; border-bottom: 1px dotted #bbb; text-align: left; word-break: break-word; }
+    .receipt-section th:last-child, .receipt-section td:last-child { text-align: right; }
+    .footer { margin-top: 12px; font-size: 11px; text-align: center; }
+    @media print {
+      body { background: #fff; }
+      .toolbar { display: none !important; }
+      .receipt { width: 80mm; margin: 0 auto; box-shadow: none; padding: 0 2mm 8mm; }
+      @page { size: 80mm auto; margin: 2mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button onclick="window.print()">Print POS Slip</button>
+    <button class="secondary" onclick="window.close()">Close</button>
+  </div>
+  <main class="receipt">
+    <div class="center">
+      <div class="title">LAYA POS REPORT</div>
+      <div class="sub">Reusable Card Activity Summary</div>
+    </div>
+    <div class="line"></div>
+    <table class="meta">
+      <tr><td>Period</td><td>${escapeHtml(dashboardState.rangeLabel)}</td></tr>
+      <tr><td>Outlet</td><td>${escapeHtml(outletFilter.value === "all" ? "All" : outletFilter.value)}</td></tr>
+      <tr><td>Card Group</td><td>${escapeHtml(groupFilter.value === "all" ? "All" : groupFilter.value)}</td></tr>
+      <tr><td>Status</td><td>${escapeHtml(statusFilter.value === "all" ? "All" : statusLabel(statusFilter.value))}</td></tr>
+      <tr><td>Printed At</td><td>${escapeHtml(new Date().toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" }))}</td></tr>
+    </table>
+    <div class="line"></div>
+    <table class="summary">
+      <tr><td>Today Redeemed</td><td>${escapeHtml(todayRedeemedCount.textContent)}</td></tr>
+      <tr><td>Today Reused</td><td>${escapeHtml(todayReusedCount.textContent)}</td></tr>
+      <tr><td>Available Now</td><td>${escapeHtml(availableNowCount.textContent)}</td></tr>
+      <tr><td>Used Now</td><td>${escapeHtml(usedNowCount.textContent)}</td></tr>
+      <tr><td>Awaiting Return</td><td>${escapeHtml(awaitingReturnCount.textContent)}</td></tr>
+    </table>
+    <div class="line"></div>
+    ${buildPosSectionTable("Redeem by Outlet", ["Outlet", "Redeem", "Reuse"], dashboardState.redeemByOutlet.slice(0, 20).map((row) => [row.outlet, row.redeemed, row.reused]))}
+    ${buildPosSectionTable("Redeem by Staff", ["Staff", "Redeem", "Reuse"], dashboardState.redeemByStaff.slice(0, 20).map((row) => [row.staff, row.redeemed, row.reused]))}
+    ${buildPosSectionTable("Top Used Card", ["Card", "Outlet", "Used"], dashboardState.topCards.slice(0, 20).map((row) => [row.card_label || row.voucher_code, row.outlet, row.redeemed]))}
+    <div class="line"></div>
+    <div class="footer">End of Report</div>
+  </main>
+</body>
+</html>`;
+
+      const printWindow = window.open("", "_blank", "width=420,height=900");
+      if (!printWindow) {
+        alert("เบราว์เซอร์บล็อกหน้าต่างป๊อปอัป กรุณาอนุญาต pop-up แล้วลองใหม่");
+        return;
+      }
+      printWindow.document.open();
+      printWindow.document.write(receiptHtml);
+      printWindow.document.close();
+    }
+
     function applyFilters() {
       const range = getSelectedRange();
       const scopeCards = cards.filter((card) => {
@@ -709,6 +818,7 @@
       applyFilters();
     });
     exportBtn.addEventListener("click", exportXlsx);
+    posPrintBtn.addEventListener("click", openPosPrintView);
 
     await loadData();
   </script>

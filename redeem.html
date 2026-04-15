@@ -94,17 +94,26 @@
       voucherBox.innerHTML = `<p class="error">เปิดกล้องไม่สำเร็จ: ${friendly}</p>`;
     }
 
+    function isIOSDevice() {
+      return /iPad|iPhone|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    }
+
     function pickBestCamera(cameras) {
       if (!Array.isArray(cameras) || !cameras.length) return null;
-      const score = (label = "") => {
-        const s = label.toLowerCase();
+      const score = (camera = {}, index = 0, total = cameras.length) => {
+        const s = String(camera.label || "").toLowerCase();
         let n = 0;
         if (/(back|rear|environment|world|traseira|trasera|arrière|후면|背面|後面)/i.test(s)) n += 100;
-        if (/(wide|ultra|main)/i.test(s)) n += 20;
-        if (/(front|user|face|facetime)/i.test(s)) n -= 50;
+        if (/(wide|ultra|main|1x|default)/i.test(s)) n += 25;
+        if (/(front|user|face|facetime|selfie)/i.test(s)) n -= 90;
+        if (isIOSDevice() && !s && total > 1 && index === total - 1) n += 40;
+        if (isIOSDevice() && total > 1 && index === total - 1) n += 10;
         return n;
       };
-      return [...cameras].sort((a,b) => score(b.label) - score(a.label))[0] || cameras[0];
+      return [...cameras]
+        .map((camera, index) => ({ camera, weight: score(camera, index) }))
+        .sort((a, b) => b.weight - a.weight)
+        .map((entry) => entry.camera)[0] || cameras[0];
     }
 
     async function stopScanner() {
@@ -143,11 +152,21 @@
       voucherBox.innerHTML = `<p class="ref">กำลังเปิดกล้อง...</p>`;
 
       try {
-        const warmup = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
-        warmup.getTracks().forEach(track => track.stop());
+        const warmup = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: isIOSDevice() ? { ideal: "environment" } : { exact: "environment" }
+          },
+          audio: false
+        });
+        warmup.getTracks().forEach((track) => track.stop());
       } catch (err) {
-        showCameraError(err);
-        return;
+        try {
+          const fallbackWarmup = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          fallbackWarmup.getTracks().forEach((track) => track.stop());
+        } catch (fallbackErr) {
+          showCameraError(fallbackErr || err);
+          return;
+        }
       }
 
       try {
@@ -159,7 +178,7 @@
       }
 
       scanner = new Html5Qrcode("reader");
-      const config = { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1.333334 };
+      const config = { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1.333334, disableFlip: true };
 
       const onSuccess = async (decodedText) => {
         if (scanBusy) return;
@@ -173,21 +192,34 @@
         if (currentCameraId) {
           await scanner.start(currentCameraId, config, onSuccess, () => {});
         } else {
-          await scanner.start({ facingMode: "environment" }, config, onSuccess, () => {});
+          await scanner.start({ facingMode: { exact: "environment" } }, config, onSuccess, () => {});
         }
         scannerRunning = true;
-        voucherBox.innerHTML = `<p class="success">กล้องพร้อมสแกนแล้ว กรุณาเล็ง QR ให้อยู่ในกรอบ</p>`;
+        voucherBox.innerHTML = `<p class="success">กล้องหลังพร้อมสแกนแล้ว กรุณาเล็ง QR ให้อยู่ในกรอบ</p>`;
       } catch (err) {
         try {
           await stopScanner();
           scanner = new Html5Qrcode("reader");
-          await scanner.start({ facingMode: "environment" }, config, onSuccess, () => {});
+          if (currentCameraId) {
+            await scanner.start(currentCameraId, config, onSuccess, () => {});
+          } else {
+            await scanner.start({ facingMode: { ideal: "environment" } }, config, onSuccess, () => {});
+          }
           scannerRunning = true;
           voucherBox.innerHTML = `<p class="success">กล้องพร้อมสแกนแล้ว กรุณาเล็ง QR ให้อยู่ในกรอบ</p>`;
           return;
         } catch (fallbackErr) {
-          await stopScanner();
-          showCameraError(fallbackErr);
+          try {
+            await stopScanner();
+            scanner = new Html5Qrcode("reader");
+            await scanner.start({ facingMode: "environment" }, config, onSuccess, () => {});
+            scannerRunning = true;
+            voucherBox.innerHTML = `<p class="success">กล้องพร้อมสแกนแล้ว กรุณาเล็ง QR ให้อยู่ในกรอบ</p>`;
+            return;
+          } catch (finalErr) {
+            await stopScanner();
+            showCameraError(finalErr || fallbackErr || err);
+          }
         }
       }
     }
