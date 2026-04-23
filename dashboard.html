@@ -65,8 +65,9 @@
         <button id="applyBtn" type="button">Apply Filter</button>
         <button id="resetBtn" type="button" class="button-secondary">Reset</button>
         <button id="exportBtn" type="button" class="button-ghost">Export XLSX</button>
-        <button id="posPrintBtn" type="button" class="button-secondary">POS Print Report</button>
+        <button id="posPrintBtn" type="button" class="button-secondary">POS Print Log</button>
       </div>
+      <p class="ref">ปุ่ม POS Print Log จะพิมพ์ตามช่วงวันที่ที่เลือกไว้ด้านบน หากต้องการพิมพ์ย้อนหลัง ให้เลือก Activity Period เป็น <strong>Custom Range</strong> หรือเลือกวัน/ช่วงวันที่ที่ต้องการ แล้วกด <strong>Apply Filter</strong> ก่อนพิมพ์</p>
     </div>
 
     <div class="stats-grid report-kpi-grid">
@@ -520,6 +521,20 @@
     }
 
     function openPosPrintView() {
+      const selectedRange = getSelectedRange();
+      const rangeStartLabel = selectedRange.start ? fmtDate(selectedRange.start) : "Beginning";
+      const rangeEndLabel = selectedRange.end ? fmtDate(selectedRange.end) : "Now";
+      const periodRedeemed = dashboardState.periodLogs.filter((log) => log.action === "redeemed").length;
+      const periodReused = dashboardState.periodLogs.filter((log) => log.action === "reused").length;
+      const periodDisabled = dashboardState.periodLogs.filter((log) => log.action === "disabled").length;
+      const periodEnabled = dashboardState.periodLogs.filter((log) => log.action === "enabled").length;
+      const printActivityRows = dashboardState.periodLogs.map((log) => [
+        fmtDateTime(log.action_at),
+        actionLabel(log.action),
+        log.card_label || log.voucher_code || "-",
+        log.action_by_name || log.action_by_uid || "-"
+      ]);
+
       const receiptHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -562,21 +577,28 @@
   </div>
   <main class="receipt">
     <div class="center">
-      <div class="title">LAYA POS REPORT</div>
-      <div class="sub">Reusable Card Activity Summary</div>
+      <div class="title">LAYA POS LOG REPORT</div>
+      <div class="sub">Reusable Card Activity for Selected Period</div>
     </div>
     <div class="line"></div>
     <table class="meta">
       <tr><td>Period</td><td>${escapeHtml(dashboardState.rangeLabel)}</td></tr>
+      <tr><td>Date From</td><td>${escapeHtml(rangeStartLabel)}</td></tr>
+      <tr><td>Date To</td><td>${escapeHtml(rangeEndLabel)}</td></tr>
       <tr><td>Outlet</td><td>${escapeHtml(outletFilter.value === "all" ? "All" : outletFilter.value)}</td></tr>
       <tr><td>Card Group</td><td>${escapeHtml(groupFilter.value === "all" ? "All" : groupFilter.value)}</td></tr>
       <tr><td>Status</td><td>${escapeHtml(statusFilter.value === "all" ? "All" : statusLabel(statusFilter.value))}</td></tr>
+      <tr><td>Printed By</td><td>${escapeHtml(profile.name || profile.employee_id || profile.role || "-")}</td></tr>
       <tr><td>Printed At</td><td>${escapeHtml(new Date().toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" }))}</td></tr>
     </table>
     <div class="line"></div>
     <table class="summary">
-      <tr><td>Today Redeemed</td><td>${escapeHtml(todayRedeemedCount.textContent)}</td></tr>
-      <tr><td>Today Reused</td><td>${escapeHtml(todayReusedCount.textContent)}</td></tr>
+      <tr><td>Period Redeemed</td><td>${escapeHtml(periodRedeemed)}</td></tr>
+      <tr><td>Period Reused</td><td>${escapeHtml(periodReused)}</td></tr>
+      <tr><td>Period Disabled</td><td>${escapeHtml(periodDisabled)}</td></tr>
+      <tr><td>Period Enabled</td><td>${escapeHtml(periodEnabled)}</td></tr>
+      <tr><td>Logs in Period</td><td>${escapeHtml(dashboardState.periodLogs.length)}</td></tr>
+      <tr><td>Cards in Scope</td><td>${escapeHtml(dashboardState.scopeCards.length)}</td></tr>
       <tr><td>Available Now</td><td>${escapeHtml(availableNowCount.textContent)}</td></tr>
       <tr><td>Used Now</td><td>${escapeHtml(usedNowCount.textContent)}</td></tr>
       <tr><td>Awaiting Return</td><td>${escapeHtml(awaitingReturnCount.textContent)}</td></tr>
@@ -585,6 +607,7 @@
     ${buildPosSectionTable("Redeem by Outlet", ["Outlet", "Redeem", "Reuse"], dashboardState.redeemByOutlet.slice(0, 20).map((row) => [row.outlet, row.redeemed, row.reused]))}
     ${buildPosSectionTable("Redeem by Staff", ["Staff", "Redeem", "Reuse"], dashboardState.redeemByStaff.slice(0, 20).map((row) => [row.staff, row.redeemed, row.reused]))}
     ${buildPosSectionTable("Top Used Card", ["Card", "Outlet", "Used"], dashboardState.topCards.slice(0, 20).map((row) => [row.card_label || row.voucher_code, row.outlet, row.redeemed]))}
+    ${buildPosSectionTable("Activity Log", ["Time", "Action", "Card", "By"], printActivityRows)}
     <div class="line"></div>
     <div class="footer">End of Report</div>
   </main>
